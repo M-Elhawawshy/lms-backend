@@ -5,15 +5,11 @@ import (
 	"crypto/tls"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
-	"os"
 	"time"
 	"users-service/database"
 )
 
-func newKafkaWriter() *kafka.Writer {
-	connectionString := os.Getenv("KAFKA_CONNECTION_STRING")
-	kafkaURL := os.Getenv("KAFKA_URL")
-
+func newKafkaWriter(kafkaURL, connectionString string) *kafka.Writer {
 	mechanism := plain.Mechanism{
 		Username: "$ConnectionString",
 		Password: connectionString,

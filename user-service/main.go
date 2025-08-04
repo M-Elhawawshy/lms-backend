@@ -25,7 +25,9 @@ func main() {
 		return
 	}
 	dbUrl := os.Getenv("DATABASE_URL")
-	app, err := newApp(dbUrl)
+	kafkaURL := os.Getenv("KAFKA_URL")
+	kafkaConnectionString := os.Getenv("KAFKA_CONNECTION_STRING")
+	app, err := newApp(dbUrl, kafkaURL, kafkaConnectionString)
 	if err != nil {
 		log.Fatal("could not create app struct")
 		return
@@ -38,7 +40,7 @@ func main() {
 	e.Logger.Fatal(e.Start(os.Getenv("HOST_URL")))
 }
 
-func newApp(databaseUrl string) (*Application, error) {
+func newApp(databaseUrl, kafkaURL, kafkaConnectionString string) (*Application, error) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true,
 		Level:     slog.LevelDebug,
@@ -50,7 +52,7 @@ func newApp(databaseUrl string) (*Application, error) {
 		return nil, err
 	}
 
-	writer := newKafkaWriter()
+	writer := newKafkaWriter(kafkaURL, kafkaConnectionString)
 
 	app := Application{
 		logger:      logger,

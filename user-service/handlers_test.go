@@ -21,8 +21,7 @@ import (
 func TestSignUpHandler(t *testing.T) {
 	require.NoError(t, godotenv.Load())
 	dbUrl := os.Getenv("TEST_DATABASE_URL")
-
-	app, err := newApp(dbUrl)
+	app, err := newApp(dbUrl, "", "")
 	require.NoError(t, err, "could not create app instance")
 
 	t.Cleanup(func() {
@@ -182,7 +181,7 @@ func TestSignUpHandler(t *testing.T) {
 func TestLoginHandler(t *testing.T) {
 	require.NoError(t, godotenv.Load())
 	dbUrl := os.Getenv("TEST_DATABASE_URL")
-	app, err := newApp(dbUrl)
+	app, err := newApp(dbUrl, "", "")
 	require.NoError(t, err, "could not create app instance")
 
 	t.Cleanup(func() {
@@ -300,7 +299,7 @@ func TestRefreshTokenHandler(t *testing.T) {
 	require.NoError(t, godotenv.Load())
 	dbUrl := os.Getenv("TEST_DATABASE_URL")
 
-	app, err := newApp(dbUrl)
+	app, err := newApp(dbUrl, "", "")
 	require.NoError(t, err, "could not create app instance")
 
 	t.Cleanup(func() {
