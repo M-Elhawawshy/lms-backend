@@ -12,7 +12,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code
+# Copy the source code, including config files
 COPY . .
 
 # Build the binary
@@ -26,6 +26,9 @@ WORKDIR /app
 
 # Copy the built binary
 COPY --from=builder /app/app .
+
+# Copy the public key and any other config files
+COPY --from=builder /app/config ./config
 
 # Declare required env vars (for docs and optional defaults)
 ENV DATABASE_URL="" \
