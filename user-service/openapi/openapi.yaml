@@ -1,0 +1,110 @@
+openapi: 3.1.0
+info:
+  title: UserService - LMS Backend
+  description: "UserService is a microservice that is
+   responsible for handling authentication and user related tasks"
+  version: 1.0.0
+servers:
+  - url: 'https://localhost:8080/api/user'
+tags:
+  - name: user
+    description: "User related endpoints"
+paths:
+  /signup:
+    post:
+      tags:
+        - user
+      summary: Create a new user
+      description: Create a new user of types center, student, teacher or assistant
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/user"
+      responses:
+        201:
+          description: Created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userResponse"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        409:
+          description: Status Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    user:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          example: "+201112345678"
+        parent_phone_number:
+          type: string
+          example: "+201112345678"
+        password:
+          type: string
+          example: "password"
+        user_type:
+          type: string
+          enum:
+            - center
+            - student
+            - teacher
+            - instructor
+        first_name:
+          type: string
+          example: "Mahmoud"
+        middle_name:
+          type: string
+          example: "Ahmed"
+        last_name:
+          type: string
+          example: "Elhawawshy"
+
+    userResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          example: "a81bc81b-dead-4e5d-abff-90865d1e13b1"
+        phone_number:
+          type: string
+          example: "+201112345678"
+        user_type:
+          type: string
+          enum:
+            - center
+            - student
+            - teacher
+            - instructor
+        first_name:
+          type: string
+          example: "Mahmoud"
+        middle_name:
+          type: string
+          example: "Ahmed"
+        last_name:
+          type: string
+          example: "Elhawawshy"
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties:
+            type: string
