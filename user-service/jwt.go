@@ -2,8 +2,11 @@ package main
 
 import (
 	"crypto/rsa"
+	"encoding/base64"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"log"
 	"os"
 	"time"
 )
@@ -20,12 +23,19 @@ var (
 
 func init() {
 	var err error
-
+	err = godotenv.Load()
+	if err != nil {
+		log.Println("could not load env inside init")
+	}
 	// Load private key
-	if privPem := os.Getenv("JWT_PRIVATE_KEY"); privPem != "" {
-		privateKey, err = jwt.ParseRSAPrivateKeyFromPEM([]byte(privPem))
+	if base64Pem := os.Getenv("JWT_PRIVATE_KEY_BASE64"); base64Pem != "" {
+		decodedPem, err := base64.StdEncoding.DecodeString(base64Pem)
 		if err != nil {
-			panic("Failed to parse private key from environment: " + err.Error())
+			log.Fatalf("Failed to decode JWT_PRIVATE_KEY_BASE64: %v", err)
+		}
+		privateKey, err = jwt.ParseRSAPrivateKeyFromPEM(decodedPem)
+		if err != nil {
+			log.Fatalf("Failed to parse RSA private key from decoded PEM: %v", err)
 		}
 	} else {
 		privData, readErr := os.ReadFile("./config/keys/private.pem")

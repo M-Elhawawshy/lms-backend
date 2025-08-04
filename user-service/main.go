@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/segmentio/kafka-go"
 	"log"
@@ -19,11 +18,6 @@ type Application struct {
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("could not load env")
-		return
-	}
 	dbUrl := os.Getenv("DATABASE_URL")
 	kafkaURL := os.Getenv("KAFKA_URL")
 	kafkaConnectionString := os.Getenv("KAFKA_CONNECTION_STRING")
