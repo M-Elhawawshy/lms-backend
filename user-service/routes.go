@@ -15,7 +15,7 @@ func (app *Application) routes(e *echo.Echo) {
 		Output:           nil,
 	}), middleware.Recover()}
 
-	group := e.Group("/api/user", standard...)
+	group := e.Group("/auth", standard...)
 	group.POST("/signup", app.signUpHandler)
 	group.POST("/login", app.loginHandler)
 	group.POST("/logout", app.logoutHandler)

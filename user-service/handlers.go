@@ -26,6 +26,17 @@ type UserSerializer struct {
 	LastName    string    `json:"last_name"`
 }
 
+type UserSignUpResponseSerializer struct {
+	UserID       uuid.UUID `json:"user_id"`
+	PhoneNumber  string    `json:"phone_number"`
+	UserType     string    `json:"user_type"`
+	FirstName    string    `json:"first_name"`
+	MiddleName   string    `json:"middle_name"`
+	LastName     string    `json:"last_name"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+}
+
 type SignUpForm struct {
 	PhoneNumber       string `form:"phone_number" validate:"required,e164"`
 	ParentPhoneNumber string `form:"parent_phone_number" validate:"omitempty,e164"`
@@ -36,6 +47,7 @@ type SignUpForm struct {
 	LastName          string `form:"last_name" validate:"required,alpha"`
 }
 
+// todo: make the user logged in when they first signup
 func (app *Application) signUpHandler(c echo.Context) error {
 	var form SignUpForm
 	if err := c.Bind(&form); err != nil {
@@ -187,7 +199,26 @@ func (app *Application) signUpHandler(c echo.Context) error {
 		return app.internalServerError(c, err)
 	}
 
-	return c.JSON(http.StatusCreated, userPayload)
+	accessToken, err := createToken(user.UserType, user.UserID.String(), time.Now().Add(time.Minute*15))
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+
+	expiration := time.Now().Add(time.Hour * 24 * 7)
+	refreshToken, err := createToken(user.UserType, user.UserID.String(), expiration)
+
+	serializer := UserSignUpResponseSerializer{
+		UserID:       userPayload.UserID,
+		PhoneNumber:  userPayload.PhoneNumber,
+		UserType:     userPayload.UserType,
+		FirstName:    userPayload.FirstName,
+		MiddleName:   userPayload.MiddleName,
+		LastName:     userPayload.LastName,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
+
+	return c.JSON(http.StatusCreated, serializer)
 }
 
 type LoginForm struct {
@@ -256,10 +287,11 @@ func (app *Application) loginHandler(c echo.Context) error {
 		Path:     "/",
 	})
 
-	type Token struct {
-		AccessToken string `json:"access_token"`
+	type Tokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
 	}
-	token := Token{accessToken}
+	token := Tokens{accessToken, refreshToken}
 
 	if err = c.JSON(http.StatusOK, token); err != nil {
 		c.SetCookie(&http.Cookie{
@@ -277,6 +309,69 @@ func (app *Application) loginHandler(c echo.Context) error {
 }
 
 func (app *Application) logoutHandler(c echo.Context) error {
+	cookie, err := c.Cookie("refresh_token")
+	if err != nil {
+		cookie = &http.Cookie{}
+	}
+	var refreshToken = cookie.Value
+	type RequestRefreshToken struct {
+		RefreshToken string `json:"refresh_token" form:"refresh_token"`
+	}
+	if refreshToken == "" {
+		var requestRefreshToken RequestRefreshToken
+		err = c.Bind(&requestRefreshToken)
+		if err != nil {
+			return app.internalServerError(c, err)
+		}
+		refreshToken = requestRefreshToken.RefreshToken
+	}
+	if refreshToken == "" {
+		return app.badRequest(c,
+			"No refresh_token provided",
+			fmt.Errorf("no refresh_token in cookie or body"),
+		)
+	}
+	refreshTokenVerified, err := verifyToken(refreshToken)
+	if err != nil {
+		return app.badRequest(c, "invalid refresh_token", fmt.Errorf("invalid refresh_token found"))
+	}
+
+	claims := refreshTokenVerified.Claims.(*jwtCustomClaims)
+	jtiString := claims.ID
+	userIDString := claims.Subject
+	expiresAt := claims.ExpiresAt
+
+	jti, err := uuid.Parse(jtiString)
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+
+	userID, err := uuid.Parse(userIDString)
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+
+	conn, err := app.dbPool.Acquire(c.Request().Context())
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+	q := database.New(conn)
+	isRevoked, err := q.IsTokenRevoked(c.Request().Context(), jti)
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+	if isRevoked {
+		return app.badRequest(c, "token already revoked", fmt.Errorf("refresh_token is already revoked"))
+	}
+	_, err = q.RevokeJwt(c.Request().Context(), database.RevokeJwtParams{
+		Jti:       jti,
+		UserID:    userID,
+		ExpiresAt: expiresAt.Time,
+	})
+	if err != nil {
+		return app.internalServerError(c, err)
+	}
+
 	c.SetCookie(&http.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
@@ -292,10 +387,28 @@ func (app *Application) logoutHandler(c echo.Context) error {
 func (app *Application) refreshToken(c echo.Context) error {
 	cookie, err := c.Cookie("refresh_token")
 	if err != nil {
-		return c.JSON(http.StatusUnauthorized, ErrorMessage{Message: "Refresh token not found"})
+		cookie = &http.Cookie{}
+	}
+	var refreshToken = cookie.Value
+	type RequestRefreshToken struct {
+		RefreshToken string `json:"refresh_token" form:"refresh_token"`
+	}
+	if refreshToken == "" {
+		var requestRefreshToken RequestRefreshToken
+		err := c.Bind(&requestRefreshToken)
+		if err != nil {
+			return app.internalServerError(c, err)
+		}
+		refreshToken = requestRefreshToken.RefreshToken
+	}
+	if refreshToken == "" {
+		return app.badRequest(c,
+			"No refresh_token provided",
+			fmt.Errorf("no refresh_token in cookie or body"),
+		)
 	}
 
-	token, err := verifyToken(cookie.Value)
+	token, err := verifyToken(refreshToken)
 	if err != nil || !token.Valid {
 		return c.JSON(http.StatusUnauthorized, ErrorMessage{Message: "Invalid refresh token"})
 	}
@@ -324,10 +437,11 @@ func (app *Application) refreshToken(c echo.Context) error {
 		Path:     "/",
 	})
 
-	type Token struct {
-		AccessToken string `json:"access_token"`
+	type Tokens struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
 	}
-	tokenResponse := Token{newAccessToken}
+	tokensResponse := Tokens{newAccessToken, newRefreshToken}
 
-	return c.JSON(http.StatusOK, tokenResponse)
+	return c.JSON(http.StatusOK, tokensResponse)
 }

@@ -10,7 +10,7 @@ tags:
   - name: user
     description: "User related endpoints"
 paths:
-  /signup:
+  /auth/signup:
     post:
       tags:
         - user

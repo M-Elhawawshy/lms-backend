@@ -149,7 +149,7 @@ func TestSignUpHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
-			c.SetPath("/api/user/signup")
+			c.SetPath("/auth/signup")
 
 			err := app.signUpHandler(c)
 			require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestLoginHandler(t *testing.T) {
 		name         string
 		form         url.Values
 		expectedCode int
-		expectToken  bool
+		expectTokens bool
 	}
 
 	tests := []testCase{
@@ -226,7 +226,7 @@ func TestLoginHandler(t *testing.T) {
 				"password":     []string{password},
 			},
 			expectedCode: http.StatusOK,
-			expectToken:  true,
+			expectTokens: true,
 		},
 		{
 			name: "invalid password",
@@ -235,7 +235,7 @@ func TestLoginHandler(t *testing.T) {
 				"password":     []string{"wrongpassword"},
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectToken:  false,
+			expectTokens: false,
 		},
 		{
 			name: "non-existent user",
@@ -244,7 +244,7 @@ func TestLoginHandler(t *testing.T) {
 				"password":     []string{password},
 			},
 			expectedCode: http.StatusUnauthorized,
-			expectToken:  false,
+			expectTokens: false,
 		},
 	}
 
@@ -256,18 +256,20 @@ func TestLoginHandler(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
-			c.SetPath("/api/user/login")
+			c.SetPath("/auth/login")
 
 			err := app.loginHandler(c)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedCode, rec.Code)
 
-			if tt.expectToken {
-				var token struct {
-					AccessToken string `json:"access_token"`
+			if tt.expectTokens {
+				var tokens struct {
+					AccessToken  string `json:"access_token"`
+					RefreshToken string `json:"refresh_token"`
 				}
-				assert.NoError(t, json.NewDecoder(rec.Body).Decode(&token))
-				assert.NotEmpty(t, token.AccessToken)
+				assert.NoError(t, json.NewDecoder(rec.Body).Decode(&tokens))
+				assert.NotEmpty(t, tokens.AccessToken)
+				assert.NotEmpty(t, tokens.RefreshToken)
 
 				cookie := rec.Result().Cookies()[0]
 				assert.Equal(t, "refresh_token", cookie.Name)
@@ -287,12 +289,7 @@ func TestLogoutHandler(t *testing.T) {
 	err := app.logoutHandler(c)
 	require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	cookie := rec.Result().Cookies()[0]
-	assert.Equal(t, "refresh_token", cookie.Name)
-	assert.Equal(t, "", cookie.Value)
-	assert.Equal(t, -1, cookie.MaxAge)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestRefreshTokenHandler(t *testing.T) {
@@ -341,18 +338,18 @@ func TestRefreshTokenHandler(t *testing.T) {
 	})
 
 	t.Run("no refresh token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/user/refresh", nil)
+		req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
 		err = app.refreshToken(c)
 		require.NoError(t, err)
 
-		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
 	t.Run("invalid refresh token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/user/refresh", nil)
+		req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 		req.AddCookie(&http.Cookie{
 			Name:  "refresh_token",
 			Value: "invalidtoken",

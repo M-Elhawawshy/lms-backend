@@ -36,7 +36,7 @@ ENV DATABASE_URL="" \
     KAFKA_URL=""
 
 # Expose the app port (optional, for clarity)
-EXPOSE 8080
+EXPOSE 80
 
 # Run the app
 CMD ["./app"]

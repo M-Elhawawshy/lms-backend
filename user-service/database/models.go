@@ -50,6 +50,13 @@ type PhoneNumber struct {
 	UserID      pgtype.UUID
 }
 
+type RevokedToken struct {
+	Jti       uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 type Student struct {
 	StudentID   uuid.UUID
 	ParentPhone string
